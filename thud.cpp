@@ -6,6 +6,7 @@
 #include <celsus/vertex_types.hpp>
 #include <celsus/error2.hpp>
 #include <celsus/Logger.hpp>
+#include <celsus/effect_wrapper.hpp>
 #include <D3DX10math.h>
 
 // 2d renderer
@@ -19,8 +20,36 @@ struct Vec2
   };
 };
 
+char shader[] = " "\
+"struct psInput												"\
+"{																		"\
+"	float4 pos : SV_Position;						"\
+"	float4 col : Color;									"\
+"};																		"\
+"																			"\
+"struct vsInput												"\
+"{																		"\
+"	float4 pos : SV_Position;						"\
+"	float4 col : Color;									"\
+"};																		"\
+"																			"\
+"psInput vsMain(in vsInput v)					"\
+"{																		"\
+"	psInput o = (psInput)0;							"\
+"	o.pos = v.pos;											"\
+"	o.col = v.col;											"\
+"	return o;														"\
+"}																		"\
+"																			"\
+"float4 psMain(in psInput v) : SV_Target	"\
+"{"\
+"	return v.col;"\
+"}";
+
 struct Thud
 {
+	Thud();
+
   static Thud& instance();
 
   bool init();
@@ -28,6 +57,8 @@ struct Thud
 
   void push_state();
   void pop_state();
+
+	void add_canvas();
 
   // (0,0) is top-left
   void set_viewport(const Vec2& extents);
@@ -50,27 +81,50 @@ struct Thud
   struct State
   {
     State()
-      : extents(Vec2(2,2))
-      , top_left(-1,1)
-      , circle_segments(20)
+      : circle_segments(20)
       , fill(D3DXCOLOR(0,0,0,0))
       , stroke(D3DXCOLOR(1,1,1,1))
     {
     }
-    Vec2 extents;
-    Vec2 top_left;
     int circle_segments;
     D3DXCOLOR fill;
     D3DXCOLOR stroke;
   };
 
-  DynamicVb<PosCol> _verts;
+	struct Canvas
+	{
+		Canvas()
+			: extents(Vec2(2,2))
+			, top_left(-1,1)
+		{
+		}
+
+		bool init()
+		{
+			RETURN_ON_FAIL_BOOL_E(_verts.create(32 * 1024));
+			return true;
+		}
+
+		Vec2 extents;
+		Vec2 top_left;
+		DynamicVb<PosCol> _verts;
+	};
+
+	EffectWrapper *_effect;
+	CComPtr<ID3D11InputLayout> _layout;
 
   std::deque<State> _states;
+	std::deque<Canvas> _canvases;
   static Thud *_instance;
 };
 
 Thud *Thud::_instance = nullptr;
+
+Thud::Thud()
+	: _effect(nullptr)
+{
+
+}
 
 Thud& Thud::instance()
 {
@@ -81,14 +135,24 @@ bool Thud::init()
 {
   // default state
   _states.push_back(State());
+	_canvases.push_back(Canvas());
+	RETURN_ON_FAIL_BOOL_E(_canvases.back().init());
+	
+	_effect = new EffectWrapper();
+	RETURN_ON_FAIL_BOOL_E(_effect->load_shaders(shader, sizeof(shader), "vsMain", NULL, "psMain"));
 
-  RETURN_ON_FAIL_BOOL(_verts.create(32*1024), LOG_ERROR_LN);
+	RETURN_ON_FAIL_BOOL_E(InputDesc().
+		add("SV_POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0).
+		add("COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0).
+		create(_layout, _effect));
 
   return true;
 }
 
 bool Thud::close()
 {
+	SAFE_DELETE(_effect);
+
   delete this;
   _instance = nullptr;
   return true;
@@ -96,14 +160,14 @@ bool Thud::close()
 
 void Thud::set_viewport(const Vec2& extents)
 {
-  _states.back().top_left = Vec2(0,0);
-  _states.back().extents = extents;
+	_canvases.back().top_left = Vec2(0,0);
+  _canvases.back().extents = extents;
 }
 
 void Thud::set_viewport(const Vec2& top_left, const Vec2& extents)
 {
-  _states.back().top_left = top_left;
-  _states.back().extents = extents;
+  _canvases.back().top_left = top_left;
+  _canvases.back().extents = extents;
 }
 
 void Thud::set_fill(const D3DXCOLOR& col)
