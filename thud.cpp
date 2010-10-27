@@ -255,7 +255,7 @@ void Thud::render()
 
   _effect->set_shaders(context);
   context->IASetInputLayout(_layout);
-  set_vb(context, canvas.verts.vb(), canvas.verts.stride);
+  set_vb(context, canvas.verts.get(), canvas.verts.stride);
   context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   context->Draw(num_verts, 0);
 }
@@ -309,10 +309,10 @@ void Thud::line(const D3DXVECTOR3& p0, const D3DXVECTOR3& p1, float w)
 
 	// v0, v1
 	// v2, v3
-	const D3DXVECTOR3 v0 = p0 + w * n0;
-	const D3DXVECTOR3 v1 = p1 + w * n0;
-	const D3DXVECTOR3 v2 = p0 + w * n1;
-	const D3DXVECTOR3 v3 = p1 + w * n1;
+	const D3DXVECTOR3 v0 = p0 + 0.5f * w * n0;
+	const D3DXVECTOR3 v1 = p1 + 0.5f * w * n0;
+	const D3DXVECTOR3 v2 = p0 + 0.5f * w * n1;
+	const D3DXVECTOR3 v3 = p1 + 0.5f * w * n1;
 
 	const State& state = _state_stack.back();
 	Canvas& canvas = _canvas_stack.back();
