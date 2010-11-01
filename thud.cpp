@@ -9,6 +9,8 @@
 #include <celsus/effect_wrapper.hpp>
 #include <celsus/math_utils.hpp>
 #include <D3DX10math.h>
+#define ANT_TW_SUPPORT_DX11
+#include <libs/AntTweakBar/include/AntTweakBar.h>
 
 using namespace std;
 
@@ -342,8 +344,12 @@ void Thud::pop_state()
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+  if( TwEventWin(hWnd, message, wParam, lParam) ) // send event message to AntTweakBar
+    return 0;
+
   switch(message)
   {
+
   case WM_KEYUP:
     switch (wParam)
     {
@@ -724,7 +730,17 @@ int WINAPI WinMain( __in HINSTANCE hInstance, __in_opt HINSTANCE hPrevInstance, 
   if (!RegisterClassEx(&wcex))
     return 1;
 
-  HWND hwnd = CreateWindow(window_class, window_class, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, width, height, NULL, NULL, hInstance, NULL);
+  const DWORD style = WS_OVERLAPPEDWINDOW;
+  RECT r;
+  r.top = 0;
+  r.left = 0;
+  r.bottom = height;
+  r.right = width;
+  AdjustWindowRect(&r, style, TRUE);
+  int w = r.right - r.left;
+  int h = r.bottom - r.top;
+
+  HWND hwnd = CreateWindow(window_class, window_class, style, CW_USEDEFAULT, CW_USEDEFAULT, w, h, NULL, NULL, hInstance, NULL);
   if (!hwnd)
     return 1;
 
@@ -757,15 +773,22 @@ int WINAPI WinMain( __in HINSTANCE hInstance, __in_opt HINSTANCE hPrevInstance, 
 
   Bezier bb = Bezier::from_points(AsArray<D3DXVECTOR3>(pts, num));
 
+  TwInit(TW_DIRECT3D11, graphics.device(), graphics.context());
+  TwWindowSize(width, height);
+
+  TwBar *myBar = TwNewBar("NameOfMyTweakBar");
+  int apa = 10;
+  TwAddVarRW(myBar, "NameOfMyVariable", TW_TYPE_INT32, &apa, "");
+
   while (WM_QUIT != msg.message) {
     if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
       TranslateMessage(&msg);
       DispatchMessage(&msg);
     } else {
       graphics.clear(D3DXCOLOR(0.5f, 0.5f, 0.5f, 1));
-      thud.start_frame();
-      thud.clear(D3DXCOLOR(0, 1, 0, 1));
-      thud.set_fill(D3DXCOLOR(1,1,1,1));
+      //thud.start_frame();
+      //thud.clear(D3DXCOLOR(0, 1, 0, 1));
+      //thud.set_fill(D3DXCOLOR(1,1,1,1));
 			//thud.circle(D3DXVECTOR3(width/2.0f, height/2.0f,0.5f), width/4.0f);
 			//thud.rect(D3DXVECTOR3(0,0,0), D3DXVECTOR3(width/2.0f, height/2.0f, 0));
 			//thud.rect(D3DXVECTOR3(width/2,height/2,0), D3DXVECTOR3(width/2.0f, height/2.0f, 0));
@@ -774,15 +797,17 @@ int WINAPI WinMain( __in HINSTANCE hInstance, __in_opt HINSTANCE hPrevInstance, 
 			for (int i = 0; i < num-1; ++i) {
 				for (int j = 0; j <= 10; ++j) {
 					D3DXVECTOR3 cur = bb.interpolate(i+j/10.0f); //bezier(i/10.0f + j/100.0f, D3DXVECTOR3(0, 200, 0), D3DXVECTOR3(40, 300, 0), D3DXVECTOR3(250, 0, 0), D3DXVECTOR3(500, 200, 0));
-					thud.line(prev, cur, 1);
+					//thud.line(prev, cur, 1);
 					prev = cur;
 				}
 			}
-      thud.render();
+      //thud.render();
+      TwDraw();
       graphics.present();
     }
   }
 
+  TwTerminate();
   thud.close();
   graphics.close();
 
